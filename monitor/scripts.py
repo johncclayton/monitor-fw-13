@@ -6,14 +6,11 @@ import subprocess
 import pkg_resources
 import sys
 import errno
+import traceback
 
 from monitor.logs import init_logging, logger
 
-class ValidationExceptionCannotParseFileWaveVersion(Exception):
-    pass
-
-
-class ValidationExceptionWrongFileWaveVersion(Exception):
+class ValidationExceptionBinaryNotFound(Exception):
     pass
 
 
@@ -29,19 +26,19 @@ def cli():
 delay_30m = 60 * 30
 
 
-def run_root_command(cmd_array):
+def run_root_command(cmd_array, **kwargs):
     try:
         os.rename('/etc/foo', '/etc/bar')
     except IOError as e:
         if (e == errno.EPERM):
             return False
 
-    proc = subprocess.Popen(cmd_array, stdout=subprocess.PIPE)
+    proc = subprocess.Popen(cmd_array, stdout=subprocess.PIPE, **kwargs)
     return proc.communicate()[0].decode('utf-8')
 
 def run_root_commands(commands):
     for c in commands:
-        run_root_command(c)
+        run_root_command(c, shell=True)
 
 def running_on_a_fwxserver_host(exist_func=os.path.exists):
     '''
@@ -76,13 +73,14 @@ def install_into_environment():
             provision_mtail_binary()
             provision_exporters()
             provision_supervisord_conf()
+            validate_provisioning()
 
-            logger.info("Looks like everything is configured, now restart the server: /usr/local/filewave/python/supervisordctl reload")
+            logger.info("Looks like everything is configured, please restart the server now, then validate installation.")
 
         except Exception as e:
-            logger.error(
-                "Error during provisioning, are you using sudo?")
+            logger.error("Error during provisioning, are you using sudo?")
             logger.error(e)
+            traceback.print_exc(file=sys.stdout)
             return
     else:
         logger.info("Didn't detect a FileWave Server host - configuration aborted")
@@ -92,10 +90,10 @@ def provision_postgres_wal_interval():
     # log_min_duration_statement = 200
     #
     cmds = [
-        "sed -i 's/log_min_duration_statement = 1000/log_min_duration_statement = 200/g' /usr/local/filewave/fwxserver/DB/pg_data/postgresql.conf"
+        "sed -i 's/log_min_duration_statement = 2000/log_min_duration_statement = 200/g' /usr/local/filewave/fwxserver/DB/pg_data/postgresql.conf"
     ]
 
-    return run_root_commands(cmd)
+    return run_root_commands(cmds)
 
 def provision_apache_mod_status():
     '''
@@ -120,6 +118,8 @@ def provision_apache_mod_status():
     run_root_commands(cmds)
 
 def provision_mtail_binary():
+    logger.info("downloading mtail...")
+
     # mtail binary: 15th Jul 2020
     # https://github.com/google/mtail/releases/download/v3.0.0-rc36/mtail_v3.0.0-rc36_linux_amd64
     cmds = [
@@ -133,10 +133,11 @@ def provision_mtail_binary():
 
     # write .mtail programs into /usr/local/etc/filewave/mtail/progs
     for mtail_file in pkg_resources.resource_listdir("monitor", "config"):
-        if yaml_file.endswith(".mtail"):
-            data = pkg_resources.resource_string("monitor.config", yaml_file)
-            provisioning_file = os.path.join("/usr/local/etc/filewave/mtail/progs", yaml_file)
-            with open(provisioning_file, 'wb') as f:
+        if mtail_file.endswith(".mtail"):
+            logger.info(f"writing with: {mtail_file}")
+            data = pkg_resources.resource_string("monitor.config", mtail_file).decode('utf-8')
+            provisioning_file = os.path.join("/usr/local/etc/filewave/mtail/progs", mtail_file)
+            with open(provisioning_file, 'w') as f:
                 f.write(data)
             shutil.chown(provisioning_file, user="root", group="root")
 
@@ -167,11 +168,14 @@ def provision_exporters():
         "mv -f node_exporter-1.0.1.linux-amd64/node_exporter /usr/local/sbin/ && rm -rf node_exporter-1.0.1.linux-amd64"
     ]
 
+    run_root_commands(cmds)
+
 def provision_supervisord_conf():
     cmds = [
-        "sed -i 's/\;files = relative\/directory\/\*\.ini/extras\/\*\.conf/g' /usr/local/etc/filewave/supervisor/supervisord-server.conf",
         "sed -i 's/\; port\=\*\:9001/port=127\.0\.0\.1\:9001/g' /usr/local/etc/filewave/supervisor/supervisord-server.conf",
-        "sed -i 's/\; \[inet_http_server\]/\[inet_http_server\]/g' /usr/local/etc/filewave/supervisor/supervisord-server.conf"
+        "sed -i 's/\; \[inet_http_server\]/\[inet_http_server\]/g' /usr/local/etc/filewave/supervisor/supervisord-server.conf",
+        "sed -i 's/\;\[include\]/\[include\]/g' /usr/local/etc/filewave/supervisor/supervisord-server.conf",
+        "sed -i 's/\;files = relative\/directory\/\*\.ini/files=extras\/\*\.conf/g' /usr/local/etc/filewave/supervisor/supervisord-server.conf",
     ]
 
     supervisord_dir = os.path.join("/usr/local/etc/filewave/supervisor/", "extras")
@@ -180,28 +184,16 @@ def provision_supervisord_conf():
 
     data = pkg_resources.resource_string("monitor.config", "monitor-v13.conf").decode('utf-8')
     provisioning_file = os.path.join(supervisord_dir, "monitor-v13.conf")
-    with open(provisioning_file, "w+") as f:
+    with open(provisioning_file, "w") as f:
         f.write(data)
 
     run_root_commands(cmds)
 
-'''
-def provision_prometheus_scrape_configuration():
-    prometheus_dir = os.path.join(
-        "/usr/local/etc/filewave/prometheus/conf.d/jobs", "http")
-    if not os.path.exists(prometheus_dir):
-        logger.error(
-            f"The Prometheus directory ({prometheus_dir}) does not exist; is this version 14+ of FileWave?")
-        return
-
-    for yaml_file in pkg_resources.resource_listdir("extra_metrics", "cfg"):
-        if yaml_file.endswith(".yml"):
-            data = pkg_resources.resource_string(
-                "extra_metrics.cfg", yaml_file)
-            provisioning_file = os.path.join(prometheus_dir, yaml_file)
-            with open(provisioning_file, 'wb') as f:
-                f.write(data)
-            prov_owner = platform.get_web_username()
-            shutil.chown(provisioning_file, user=prov_owner, group=prov_owner)
-
-'''
+def validate_provisioning():
+    binaries = [ "node_exporter", "apache_exporter", "mtail", "postgres_exporter" ]
+    for b in binaries:
+        f = os.path.join("/usr/local/sbin", b)
+        if not os.path.exists(f):
+            raise ValidationExceptionBinaryNotFound(f"failed to find required binary: {f}")
+        else:
+            logger.info(f"OK: {f}")

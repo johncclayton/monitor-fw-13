@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="filewave-monitor-v13",
-    version="1.0.0",
+    version="1.0.2",
     author="John Clayton",
     author_email="johnc@filewave.com",
     description="An additional module that installs programs/config required to monitor v13 instances via Prometheus.",
@@ -21,9 +21,7 @@ setuptools.setup(
     },
     install_requires=[
         'click',
-        'progressbar2',
-        'pyzmq',
-        'asyncio-periodic'
+        'progressbar2'
     ],
     setup_requires=[
         'wheel'
