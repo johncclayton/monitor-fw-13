@@ -91,7 +91,7 @@ def provision_postgres_wal_interval():
     # log_min_duration_statement = 200
     #
     cmds = [
-        "sed -i 's/log_min_duration_statement = 2000/log_min_duration_statement = 200/g' /usr/local/filewave/fwxserver/DB/pg_data/postgresql.conf"
+        "sed -i 's/log_min_duration_statement = 10000/log_min_duration_statement = 200/g' /usr/local/filewave/fwxserver/DB/pg_data/postgresql.conf"
     ]
 
     return run_root_commands(cmds)
