@@ -20,8 +20,6 @@ Check the following:
 # Grafana 
 The last step is to add a configuration into Grafana for this data source, and to import the performance dashboard. 
 
-Prometheus is running on port 21090 (ports were opened by the monitor-v13-install script).  You need to create a datasource pointing to this host and port 21090.
+Prometheus is running on port 21090 (ports were opened by the monitor-v13-install script).  You need to create a Prometheus datasource pointing to this host and port 21090.
 
-Import a new dashboard from Grafana.com using the following ID: 12667
-
-
+Lastly; import a new dashboard from Grafana.com using the following ID: 12667
