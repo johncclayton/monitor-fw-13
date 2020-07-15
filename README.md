@@ -10,17 +10,6 @@ Instructions:
     $ /usr/local/filewave/python/bin/pip3 install --upgrade filewave-monitor-v13
     $ /usr/local/filewave/python/bin/monitor-v13-install
 
-```
-[2020-07-15 15:33:27,595] [monitor-v13] [INFO] downloading mtail...
-[2020-07-15 15:33:29,969] [monitor-v13] [INFO] dealing with: apache_exporter_err.mtail
-[2020-07-15 15:33:29,970] [monitor-v13] [INFO] dealing with: filewave_django.mtail
-[2020-07-15 15:33:29,970] [monitor-v13] [INFO] dealing with: fwldap.mtail
-[2020-07-15 15:33:29,971] [monitor-v13] [INFO] dealing with: postgres.mtail
-[2020-07-15 15:33:29,971] [monitor-v13] [INFO] downloading postgres exporter...
-[2020-07-15 15:33:34,586] [monitor-v13] [INFO] downloading node_exporter
-[2020-07-15 15:33:34,596] [monitor-v13] [INFO] Looks like everything is configured, now restart the server: /usr/local/filewave/python/supervisordctl reload
-```
-
 # Restart Services
 Restart supervisord (not just fwcontrol; more programs were added so don't skip this step)
 
@@ -29,8 +18,15 @@ Restart supervisord (not just fwcontrol; more programs were added so don't skip 
 # Validation (did it all work?): 
 Check the following: 
 
-    $ ls -l /tmp/mtail.INFO - this should produce some output and tell you that the mtail progs loaded OK
-    $ 
+    $ tail -f /tmp/mtail.INFO - this should produce some output and tell you that the mtail progs loaded OK
+    $ ps -ajx | grep prometheus - should show prometheus running (check http://localhost:21090/targets now!)
+    
+# Grafana 
+The last step is to add a configuration into Grafana for this data source, and to import the performance dashboard. 
+
+Prometheus is running on port 21090 (ports were opened by the monitor-v13-install script).  You need to create a datasource pointing to this host and port 21090.
+
+
 
 
 

@@ -70,6 +70,7 @@ def install_into_environment():
         try:
             provision_postgres_wal_interval()
             provision_apache_mod_status()
+            provision_prometheus_binary()
             provision_mtail_binary()
             provision_exporters()
             provision_supervisord_conf()
@@ -94,6 +95,34 @@ def provision_postgres_wal_interval():
     ]
 
     return run_root_commands(cmds)
+
+def provision_prometheus_binary():
+    cmds = [
+        "wget https://github.com/prometheus/prometheus/releases/download/v2.19.2/prometheus-2.19.2.linux-amd64.tar.gz",
+        "tar xzf prometheus-2.19.2.linux-amd64.tar.gz",
+        "mkdir -p /usr/local/etc/filewave/prometheus",
+        "mkdir -p /usr/local/etc/filewave/prometheus/conf.d/rules",
+        "mkdir -p /usr/local/etc/filewave/prometheus/conf.d/alerts",
+        "mkdir -p /usr/local/filewave/prometheus/",
+        "mv prometheus-2.19.2.linux-amd64/prometheus /usr/local/sbin/",
+        "mv prometheus-2.19.2.linux-amd64/promtool /usr/local/sbin/",
+        "mv prometheus-2.19.2.linux-amd64/tsdb /usr/local/sbin/",
+        "mv prometheus-2.19.2.linux-amd64/console_libraries /usr/local/filewave/prometheus/",
+        "mv prometheus-2.19.2.linux-amd64/consoles /usr/local/filewave/prometheus/",
+        "mkdir -p /usr/local/etc/filewave/prometheus/conf.d/jobs/http",
+        "chown -R root:root /usr/local/filewave/prometheus/",
+        "rm -rf prometheus-2.19.2.linux-amd64"
+    ]
+
+    run_root_commands(cmds)
+
+    prom_file = "prometheus.yml"
+    data = pkg_resources.resource_string("monitor.config", prom_file).decode('utf-8')
+    provisioning_file = os.path.join("/usr/local/etc/filewave/prometheus", prom_file)
+    with open(provisioning_file, 'w') as f:
+        f.write(data)
+    shutil.chown(provisioning_file, user="root", group="root")
+    shutil.chown("/usr/local/filewave/prometheus", user="root", group="root")
 
 def provision_apache_mod_status():
     '''
@@ -125,8 +154,11 @@ def provision_mtail_binary():
     cmds = [
         "mkdir -p /usr/local/etc/filewave/mtail/progs",
         "chown -R root:root /usr/local/etc/filewave/mtail",
-        "wget https://github.com/google/mtail/releases/download/v3.0.0-rc36/mtail_v3.0.0-rc36_linux_amd64 -o /usr/local/sbin/mtail",
-        "chmod +x /usr/local/sbin/mtail"
+        "wget https://github.com/google/mtail/releases/download/v3.0.0-rc36/mtail_v3.0.0-rc36_linux_amd64",
+        "cp mtail_v3.0.0-rc36_linux_amd64 /usr/local/sbin/mtail",
+        "chmod +x /usr/local/sbin/mtail",
+        "firewall-cmd --zone=public --add-port=21090/tcp --permanent",
+        "firewall-cmd --reload"
     ]
 
     run_root_commands(cmds)
@@ -190,10 +222,11 @@ def provision_supervisord_conf():
     run_root_commands(cmds)
 
 def validate_provisioning():
-    binaries = [ "node_exporter", "apache_exporter", "mtail", "postgres_exporter" ]
+    binaries = [ "node_exporter", "apache_exporter", "mtail", "postgres_exporter", "prometheus", "promtool", "tsdb" ]
     for b in binaries:
         f = os.path.join("/usr/local/sbin", b)
         if not os.path.exists(f):
             raise ValidationExceptionBinaryNotFound(f"failed to find required binary: {f}")
         else:
             logger.info(f"OK: {f}")
+            shutil.chown(f, user="root", group="root")
