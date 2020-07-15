@@ -1,6 +1,9 @@
 # monitor-fw-13
 An additional module that installs programs/config required to monitor v13 instances via Prometheus. 
 
+# PyPi
+The released versions are available on PyPi, at this link here: https://pypi.org/project/filewave-monitor-v13
+
 # Installation
 Use pip to install this module first, then run a configuration stage to integrate this module properly into the v13 server. Don't forget to restart the supervisord daemon!
 
