@@ -7,9 +7,12 @@ The released versions are available on PyPi, at this link here: https://pypi.org
 # Installation
 Use pip to install this module first, then run a configuration stage to integrate this module properly into the v13 server. Don't forget to restart the supervisord daemon!
 
+> Note: you need wget to have the scripts work properly 
+
 Instructions:
 
     $ sudo su -
+    $ yum install -y wget
     $ /usr/local/filewave/python/bin/pip3 install --upgrade filewave-monitor-v13
     $ /usr/local/filewave/python/bin/monitor-v13-install
     $ /usr/local/filewave/python.v27/bin/supervisorctl -c /usr/local/etc/filewave/supervisor/supervisord-server.conf reload
